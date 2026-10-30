@@ -1,0 +1,119 @@
+{
+  "name": "MedGrid 01 - AI Multi-Agent Orchestrator & Notification Pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "medgrid-orchestrator",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "node-webhook-trigger",
+      "name": "Webhook Trigger (Dashboard / API)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/agents/execute",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $json.body.message }}"
+            },
+            {
+              "name": "session_id",
+              "value": "={{ $json.body.session_id || 'n8n-session' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-langgraph-orchestrator",
+      "name": "FastAPI LangGraph Orchestrator",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{ $json.requires_approval }}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "id": "node-approval-gate",
+      "name": "Requires Human Approval?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [740, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "notifications@medgrid-hospital.org",
+        "toEmail": "ops-supervisor@medgrid-hospital.org",
+        "subject": "=[URGENT APPROVAL] {{ $json.active_agent }} requested human review",
+        "text": "=Action requiring approval: {{ $json.approval_summary }}\nPlease approve or reject in the MedGrid Dashboard [A]."
+      },
+      "id": "node-smtp-supervisor",
+      "name": "Notify Supervisor (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1000, 180]
+    },
+    {
+      "parameters": {
+        "fromEmail": "notifications@medgrid-hospital.org",
+        "toEmail": "={{ $json.patient_email || 'patient@medgrid-hospital.org' }}",
+        "subject": "=MedGrid Hospital Confirmation - {{ $json.active_agent }}",
+        "text": "={{ $json.response }}"
+      },
+      "id": "node-smtp-patient",
+      "name": "Send Patient Confirmation (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [1000, 420]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "node-webhook-response",
+      "name": "Return Result to Dashboard",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [1260, 300]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger (Dashboard / API)": {
+      "main": [[{ "node": "FastAPI LangGraph Orchestrator", "type": "main", "index": 0 }]]
+    },
+    "FastAPI LangGraph Orchestrator": {
+      "main": [[{ "node": "Requires Human Approval?", "type": "main", "index": 0 }]]
+    },
+    "Requires Human Approval?": {
+      "main": [
+        [{ "node": "Notify Supervisor (SMTP)", "type": "main", "index": 0 }],
+        [{ "node": "Send Patient Confirmation (SMTP)", "type": "main", "index": 0 }]
+      ]
+    },
+    "Notify Supervisor (SMTP)": {
+      "main": [[{ "node": "Return Result to Dashboard", "type": "main", "index": 0 }]]
+    },
+    "Send Patient Confirmation (SMTP)": {
+      "main": [[{ "node": "Return Result to Dashboard", "type": "main", "index": 0 }]]
+    }
+  }
+}
+

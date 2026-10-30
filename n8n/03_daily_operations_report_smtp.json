@@ -1,0 +1,56 @@
+{
+  "name": "MedGrid 03 - Daily Operations Agent Executive Digest (Schedule + LangGraph + SMTP)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 18 * * *"
+            }
+          ]
+        }
+      },
+      "id": "node-daily-cron",
+      "name": "Schedule Trigger (Daily 18:00)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/operations/daily-report",
+        "options": {}
+      },
+      "id": "node-invoke-ops-agent",
+      "name": "Invoke Operations Agent (FastAPI)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "ops-agent@medgrid-hospital.org",
+        "toEmail": "chief-medical-officer@medgrid-hospital.org",
+        "subject": "=MedGrid Daily Operations Executive Digest ({{ $json.report_date }})",
+        "text": "={{ $json.executive_summary }}\n\nTotal Appointments: {{ $json.metrics.total_appointments }}\nConfirmed: {{ $json.metrics.confirmed }}\nCancelled: {{ $json.metrics.cancelled }}\nPending Human Approvals: {{ $json.metrics.pending_approvals }}\n\nOperational Bottlenecks:\n{{ $json.issues_summary }}"
+      },
+      "id": "node-send-digest",
+      "name": "Email Executive Digest (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [780, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Daily 18:00)": {
+      "main": [[{ "node": "Invoke Operations Agent (FastAPI)", "type": "main", "index": 0 }]]
+    },
+    "Invoke Operations Agent (FastAPI)": {
+      "main": [[{ "node": "Email Executive Digest (SMTP)", "type": "main", "index": 0 }]]
+    }
+  }
+}
+

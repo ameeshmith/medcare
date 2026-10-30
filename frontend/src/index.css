@@ -1,0 +1,130 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: #051109;
+    color: #ecfdf3;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, .font-mono-tech {
+    font-family: var(--font-mono);
+    letter-spacing: -0.025em;
+  }
+}
+
+/* Ambient Glassmorphism Background Glows + Exposed Swiss Grid */
+.medgrid-bg {
+  background-color: #051109;
+  background-image:
+    radial-gradient(circle at 14% 18%, rgba(46, 213, 115, 0.16) 0%, transparent 38%),
+    radial-gradient(circle at 84% 26%, rgba(163, 230, 53, 0.12) 0%, transparent 34%),
+    radial-gradient(circle at 52% 82%, rgba(16, 185, 129, 0.14) 0%, transparent 45%),
+    linear-gradient(to right, rgba(116, 242, 156, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(116, 242, 156, 0.05) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 64px 64px, 64px 64px;
+}
+
+/* Primary Glassmorphism Container */
+.glass-panel {
+  background: linear-gradient(
+    135deg,
+    rgba(13, 41, 23, 0.62) 0%,
+    rgba(6, 20, 11, 0.48) 100%
+  );
+  backdrop-filter: blur(22px) saturate(165%);
+  -webkit-backdrop-filter: blur(22px) saturate(165%);
+  border: 1px solid rgba(116, 242, 156, 0.18);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.14),
+    0 20px 50px -15px rgba(0, 0, 0, 0.72);
+}
+
+/* Swiss Grid Cell with Frosted Glass Surface */
+.glass-cell {
+  background: linear-gradient(
+    160deg,
+    rgba(12, 36, 20, 0.50) 0%,
+    rgba(6, 19, 10, 0.36) 100%
+  );
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-cell:hover {
+  background: linear-gradient(
+    160deg,
+    rgba(18, 52, 29, 0.64) 0%,
+    rgba(9, 28, 15, 0.48) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 0 rgba(116, 242, 156, 0.25),
+    0 12px 32px -10px rgba(0, 0, 0, 0.6);
+}
+
+/* Frosted Pill / Terminal Command Badge */
+.glass-pill {
+  background: rgba(14, 44, 24, 0.58);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(116, 242, 156, 0.24);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.12);
+}
+
+/* LocalCan-style Keyboard Shortcut Keycap */
+.keycap-dark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.4rem;
+  height: 1.4rem;
+  padding: 0 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 600;
+  border-radius: 0.25rem;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #d1fae5;
+}
+
+.keycap-light {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.45rem;
+  height: 1.45rem;
+  padding: 0 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 0.25rem;
+  background: rgba(5, 17, 9, 0.12);
+  border: 1px solid rgba(5, 17, 9, 0.22);
+  color: #051109;
+}
+
+/* Custom subtle scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(5, 17, 9, 0.6);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(116, 242, 156, 0.24);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(116, 242, 156, 0.45);
+}
+

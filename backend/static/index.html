@@ -1,0 +1,768 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CareGrid — Simple Healthcare & Clinic Operations</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+      :root {
+        --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-mono: 'JetBrains Mono', monospace;
+      }
+      body {
+        font-family: var(--font-sans);
+        background: radial-gradient(120% 120% at 50% 10%, #7678ed 0%, #5d5fef 45%, #4648c8 100%);
+        min-height: 100vh;
+        color: #1e1b4b;
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* Clean Soft Glassmorphic Cards (Inspired by the Reference Mobile Card UI) */
+      .glass-card-hero {
+        background: rgba(255, 255, 255, 0.94);
+        backdrop-filter: blur(28px);
+        -webkit-backdrop-filter: blur(28px);
+        box-shadow: 0 24px 60px -12px rgba(30, 27, 75, 0.28), 0 4px 16px rgba(255, 255, 255, 0.6) inset;
+        border-radius: 28px;
+      }
+
+      .glass-card-subtle {
+        background: rgba(255, 255, 255, 0.78);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        box-shadow: 0 12px 36px -8px rgba(30, 27, 75, 0.16);
+        border: 1px solid rgba(255, 255, 255, 0.85);
+        border-radius: 24px;
+      }
+
+      .glass-nav-pill {
+        background: rgba(255, 255, 255, 0.22);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.35);
+        border-radius: 9999px;
+      }
+
+      .card-carousel-item {
+        transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      }
+      .card-carousel-item:hover {
+        transform: translateY(-6px);
+      }
+
+      /* Big Friendly Tap Targets for Elderly / Busy Receptionists */
+      .btn-primary {
+        background: #5d5fef;
+        color: #ffffff;
+        font-weight: 700;
+        border-radius: 20px;
+        transition: all 0.2s ease;
+        box-shadow: 0 10px 24px -6px rgba(93, 95, 239, 0.45);
+      }
+      .btn-primary:hover {
+        background: #4e50e0;
+        transform: translateY(-2px);
+      }
+      .btn-primary:active {
+        transform: translateY(0);
+      }
+
+      .btn-yellow {
+        background: #ffdd53;
+        color: #312e81;
+        font-weight: 800;
+        border-radius: 20px;
+        transition: all 0.2s ease;
+        box-shadow: 0 10px 24px -6px rgba(255, 221, 83, 0.45);
+      }
+      .btn-yellow:hover {
+        background: #fed435;
+        transform: translateY(-2px);
+      }
+
+      /* Custom soft scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.1);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 10px;
+      }
+    </style>
+  </head>
+  <body class="p-4 sm:p-8 flex flex-col items-center">
+    <div id="root" class="w-full max-w-6xl"></div>
+
+    <script type="text/babel">
+      const { useState, useEffect, useCallback } = React;
+
+      const API_BASE = '/api';
+      async function request(path, options = {}) {
+        const res = await fetch(`${API_BASE}${path}`, {
+          headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+          ...options,
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const err = new Error(
+            typeof data.detail === 'string'
+              ? data.detail
+              : data.detail?.message || 'Something went wrong'
+          );
+          err.detail = data.detail;
+          throw err;
+        }
+        return data;
+      }
+
+      const api = {
+        getOverview: () => request('/dashboard/overview'),
+        executeAgent: (message) => request('/agents/execute', { method: 'POST', body: JSON.stringify({ message }) }),
+        bookAppointment: (payload) => request('/appointments/book', { method: 'POST', body: JSON.stringify(payload) }),
+        rescheduleAppointment: (id, payload) => request(`/appointments/${id}/reschedule`, { method: 'POST', body: JSON.stringify(payload) }),
+        cancelAppointment: (id, payload) => request(`/appointments/${id}/cancel`, { method: 'POST', body: JSON.stringify(payload) }),
+        resolveApproval: (id, decision, reviewer_note) => request(`/approvals/${id}/resolve`, { method: 'POST', body: JSON.stringify({ decision, reviewer_note }) }),
+        queryRag: (query, top_k = 3) => request('/rag/query', { method: 'POST', body: JSON.stringify({ query, top_k }) }),
+        generateDailyReport: () => request('/operations/daily-report', { method: 'POST' }),
+        triggerN8nReminders: () => request('/n8n/trigger-reminders', { method: 'POST' }),
+        updateGroqKey: (api_key) => request('/settings/groq', { method: 'POST', body: JSON.stringify({ api_key }) }),
+      };
+
+      function App() {
+        const [activeTab, setActiveTab] = useState('activities'); // 'activities', 'book', 'chat', 'approvals', 'faq'
+        const [overview, setOverview] = useState(null);
+        const [loading, setLoading] = useState(false);
+        const [banner, setBanner] = useState(null);
+
+        // Chat state
+        const [chatMessage, setChatMessage] = useState('');
+        const [chatHistory, setChatHistory] = useState([
+          {
+            sender: 'bot',
+            text: "Hello! I am your Clinic Assistant. You can ask me to book an appointment, check doctor timings, explain hospital policies, or cancel a visit.",
+          }
+        ]);
+
+        // Booking form state
+        const [patientName, setPatientName] = useState('Sarah Jenkins');
+        const [patientEmail, setPatientEmail] = useState('sarah.j@example.com');
+        const [selectedDocId, setSelectedDocId] = useState(1);
+        const [selectedTime, setSelectedTime] = useState('10:00');
+        const [bookingReason, setBookingReason] = useState('Routine health checkup');
+
+        const loadOverview = useCallback(async () => {
+          try {
+            const data = await api.getOverview();
+            setOverview(data);
+          } catch (e) {
+            console.error('Overview error', e);
+          }
+        }, []);
+
+        useEffect(() => {
+          loadOverview();
+        }, [loadOverview]);
+
+        const handleSendMessage = async (customPrompt) => {
+          const text = customPrompt || chatMessage;
+          if (!text.trim() || loading) return;
+          
+          setChatHistory(prev => [...prev, { sender: 'user', text }]);
+          if (!customPrompt) setChatMessage('');
+          setLoading(true);
+
+          try {
+            const res = await api.executeAgent(text);
+            setChatHistory(prev => [
+              ...prev,
+              {
+                sender: 'bot',
+                agent: res.active_agent,
+                text: res.response,
+                requires_approval: res.requires_approval
+              }
+            ]);
+            loadOverview();
+          } catch (err) {
+            setChatHistory(prev => [...prev, { sender: 'bot', text: "Error: " + err.message }]);
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const handleQuickBook = async (e) => {
+          e.preventDefault();
+          setLoading(true);
+          setBanner(null);
+          try {
+            const res = await api.bookAppointment({
+              patient_name: patientName,
+              patient_email: patientEmail,
+              doctor_id: Number(selectedDocId),
+              appointment_date: new Date().toISOString().slice(0, 10),
+              slot_time: selectedTime,
+              reason: bookingReason,
+              priority: 'ROUTINE',
+            });
+            setBanner({
+              type: 'success',
+              msg: `Appointment ${res.appointment_code} booked successfully! A confirmation email was prepared.`
+            });
+            loadOverview();
+            setActiveTab('activities');
+          } catch (err) {
+            setBanner({
+              type: 'error',
+              msg: err.message
+            });
+          } finally {
+            setLoading(false);
+          }
+        };
+
+        const handleResolveApproval = async (id, decision) => {
+          try {
+            await api.resolveApproval(id, decision, 'Action taken from simplified dashboard');
+            loadOverview();
+          } catch (e) {
+            alert(e.message);
+          }
+        };
+
+        const appointments = overview?.appointments || [];
+        const doctors = overview?.doctors || [];
+        const pendingApprovals = (overview?.approvals || []).filter(a => a.status === 'PENDING');
+
+        return (
+          <div className="flex flex-col gap-6">
+            
+            {/* Header: Soft Lavender Glass Header */}
+            <header className="glass-nav-pill px-6 py-4 flex flex-wrap items-center justify-between text-white gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-white/25 flex items-center justify-center font-bold text-xl shadow-inner">
+                  ✚
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+                    CareGrid Clinic
+                    <span className="text-xs px-2.5 py-0.5 rounded-full bg-white/20 text-white font-medium">
+                      Simple & Clear
+                    </span>
+                  </h1>
+                  <p className="text-xs text-white/80">
+                    Friendly Hospital & Patient Assistance
+                  </p>
+                </div>
+              </div>
+
+              {/* Navigation Pill Menu (like phone bottom dock) */}
+              <div className="flex items-center gap-1.5 bg-black/20 p-1.5 rounded-full">
+                <button
+                  onClick={() => setActiveTab('activities')}
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
+                    activeTab === 'activities' ? 'bg-white text-[#4648c8] shadow-md' : 'text-white/80 hover:text-white'
+                  }`}
+                >
+                  Today's Schedule
+                </button>
+                <button
+                  onClick={() => setActiveTab('book')}
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
+                    activeTab === 'book' ? 'bg-white text-[#4648c8] shadow-md' : 'text-white/80 hover:text-white'
+                  }`}
+                >
+                  Book Visit
+                </button>
+                <button
+                  onClick={() => setActiveTab('chat')}
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
+                    activeTab === 'chat' ? 'bg-white text-[#4648c8] shadow-md' : 'text-white/80 hover:text-white'
+                  }`}
+                >
+                  Ask Assistant
+                </button>
+                <button
+                  onClick={() => setActiveTab('approvals')}
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all relative ${
+                    activeTab === 'approvals' ? 'bg-white text-[#4648c8] shadow-md' : 'text-white/80 hover:text-white'
+                  }`}
+                >
+                  Approvals
+                  {pendingApprovals.length > 0 && (
+                    <span className="ml-1.5 px-1.5 py-0.2 rounded-full bg-[#ffdd53] text-[#312e81] text-[10px] font-black">
+                      {pendingApprovals.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setActiveTab('faq')}
+                  className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
+                    activeTab === 'faq' ? 'bg-white text-[#4648c8] shadow-md' : 'text-white/80 hover:text-white'
+                  }`}
+                >
+                  Hospital Info
+                </button>
+              </div>
+            </header>
+
+            {/* Banner Notifications */}
+            {banner && (
+              <div
+                className={`p-4 rounded-2xl text-sm font-semibold flex items-center justify-between shadow-lg ${
+                  banner.type === 'success' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                }`}
+              >
+                <span>{banner.msg}</span>
+                <button onClick={() => setBanner(null)} className="text-sm px-2 py-1 rounded hover:bg-black/10">
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* TAB 1: TODAY'S ACTIVITIES (Exact Carousel Cards Style from the Reference Image) */}
+            {activeTab === 'activities' && (
+              <div className="flex flex-col gap-6">
+                
+                {/* Header Title Section */}
+                <div className="text-center text-white py-2">
+                  <h2 className="text-3xl font-extrabold tracking-tight">Today's Visits & Schedules</h2>
+                  <div className="mt-2 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/20 text-white font-semibold text-xs tracking-wide">
+                    <span>📅</span>
+                    <span>TODAY &bull; ACTIVE DOCTORS ON DUTY</span>
+                  </div>
+                </div>
+
+                {/* Clean Floating Card Carousel */}
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-5 items-stretch">
+                  {appointments.slice(0, 8).map((apt, idx) => {
+                    const isConfirmed = apt.status === 'CONFIRMED';
+                    return (
+                      <div
+                        key={apt.id}
+                        className="glass-card-hero p-6 flex flex-col justify-between items-center text-center card-carousel-item"
+                      >
+                        <div className="w-full flex justify-between items-center text-xs font-bold text-[#5d5fef]">
+                          <span className="bg-[#5d5fef]/10 px-3 py-1 rounded-full">{apt.slot_time}</span>
+                          <span className={`px-2.5 py-0.5 rounded-full text-[10px] ${
+                            isConfirmed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {apt.status}
+                          </span>
+                        </div>
+
+                        {/* Large Friendly Medical Icon */}
+                        <div className="my-6 w-20 h-20 rounded-3xl bg-[#5d5fef]/10 flex items-center justify-center text-3xl shadow-sm text-[#5d5fef]">
+                          {idx % 3 === 0 ? '🩺' : idx % 3 === 1 ? '💊' : '📋'}
+                        </div>
+
+                        {/* Patient & Doctor Names in Big Clear Font */}
+                        <div className="space-y-1 mb-4">
+                          <h3 className="font-extrabold text-lg text-slate-800">
+                            {apt.patient_name}
+                          </h3>
+                          <p className="text-xs font-semibold text-[#5d5fef]">
+                            {apt.doctor_name}
+                          </p>
+                          <p className="text-xs text-slate-500 line-clamp-1">
+                            {apt.reason}
+                          </p>
+                        </div>
+
+                        {/* 1-Click Action for Receptionist */}
+                        <div className="w-full pt-3 border-t border-slate-100 flex gap-2">
+                          <button
+                            onClick={() => {
+                              api.cancelAppointment(apt.id, { reason: 'Cancelled from quick view', force_approval: false })
+                                .then(() => loadOverview());
+                            }}
+                            className="flex-1 py-2 rounded-xl text-xs font-semibold text-slate-500 hover:bg-slate-100 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => {
+                              api.rescheduleAppointment(apt.id, { new_date: apt.appointment_date, new_slot_time: '16:00' })
+                                .then(() => loadOverview());
+                            }}
+                            className="flex-1 py-2 rounded-xl text-xs font-bold text-[#5d5fef] bg-[#5d5fef]/10 hover:bg-[#5d5fef]/20 transition-colors"
+                          >
+                            Reschedule
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Quick Action Floating Bar */}
+                <div className="glass-card-subtle p-6 flex flex-wrap items-center justify-between gap-4">
+                  <div>
+                    <h3 className="font-bold text-slate-800 text-base">Need to send patient reminders?</h3>
+                    <p className="text-xs text-slate-500">n8n sends friendly emails automatically to patients arriving today.</p>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => {
+                        api.triggerN8nReminders().then(r => alert(`Dispatched ${r.reminders_dispatched} reminder emails!`));
+                      }}
+                      className="btn-yellow px-5 py-3 text-xs flex items-center gap-2 cursor-pointer"
+                    >
+                      <span>🔔</span>
+                      <span>Send All Patient Reminders</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('book')}
+                      className="btn-primary px-5 py-3 text-xs flex items-center gap-2 cursor-pointer"
+                    >
+                      <span>✚</span>
+                      <span>Book New Patient</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* TAB 2: BOOK VISIT (Simplified, Big Clean Inputs) */}
+            {activeTab === 'book' && (
+              <div className="max-w-2xl mx-auto w-full glass-card-hero p-8">
+                <div className="text-center mb-6">
+                  <div className="inline-block p-3 rounded-2xl bg-[#5d5fef]/10 text-2xl mb-2">
+                    🗓️
+                  </div>
+                  <h2 className="text-2xl font-extrabold text-slate-800">Book a Doctor's Visit</h2>
+                  <p className="text-xs text-slate-500">
+                    Takes 30 seconds. Double-booking protection is enabled automatically.
+                  </p>
+                </div>
+
+                <form onSubmit={handleQuickBook} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Patient's Full Name
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={patientName}
+                      onChange={e => setPatientName(e.target.value)}
+                      placeholder="e.g. Eleanor Vance"
+                      className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/50 text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-[#5d5fef]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Email Address (for reminder)
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={patientEmail}
+                      onChange={e => setPatientEmail(e.target.value)}
+                      placeholder="eleanor@example.com"
+                      className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/50 text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-[#5d5fef]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Select Doctor
+                      </label>
+                      <select
+                        value={selectedDocId}
+                        onChange={e => setSelectedDocId(e.target.value)}
+                        className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-[#5d5fef]"
+                      >
+                        {doctors.map(d => (
+                          <option key={d.id} value={d.id}>
+                            {d.full_name} ({d.department})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                        Select Preferred Time
+                      </label>
+                      <select
+                        value={selectedTime}
+                        onChange={e => setSelectedTime(e.target.value)}
+                        className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-[#5d5fef]"
+                      >
+                        {['09:00', '10:00', '11:00', '12:00', '14:00', '15:00', '16:00'].map(t => (
+                          <option key={t} value={t}>{t}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                      Reason for Visit
+                    </label>
+                    <input
+                      type="text"
+                      value={bookingReason}
+                      onChange={e => setBookingReason(e.target.value)}
+                      placeholder="e.g. Mild headache, blood pressure checkup"
+                      className="w-full px-4 py-3.5 rounded-2xl border border-slate-200 bg-slate-50/50 text-slate-800 font-semibold focus:outline-none focus:ring-2 focus:ring-[#5d5fef]"
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full btn-primary py-4 text-sm uppercase tracking-wider font-extrabold cursor-pointer mt-4"
+                  >
+                    {loading ? 'Confirming with Doctor Schedule...' : 'Confirm Appointment'}
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* TAB 3: ASK ASSISTANT (Plain English AI helper with Groq Llama 3.3 70B) */}
+            {activeTab === 'chat' && (
+              <div className="glass-card-hero p-6 flex flex-col justify-between min-h-[550px]">
+                <div>
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-2xl bg-[#5d5fef]/10 flex items-center justify-center text-xl">
+                        🤖
+                      </div>
+                      <div>
+                        <h2 className="font-bold text-slate-800 text-lg">AI Clinic Helper</h2>
+                        <p className="text-xs text-slate-500">
+                          Powered by Groq Llama 3.3 70B &amp; LangGraph Multi-Agent Engine
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Helpful 1-tap quick buttons for elderly or fast receptionist entry */}
+                    <div className="hidden sm:flex items-center gap-2">
+                      <button
+                        onClick={() => handleSendMessage("What are the visiting hours for the hospital?")}
+                        className="px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 hover:bg-[#5d5fef] hover:text-white transition-colors text-xs font-medium cursor-pointer"
+                      >
+                        Visiting Hours?
+                      </button>
+                      <button
+                        onClick={() => handleSendMessage("Book Maya with Dr. Elena Vance at 15:00 today")}
+                        className="px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 hover:bg-[#5d5fef] hover:text-white transition-colors text-xs font-medium cursor-pointer"
+                      >
+                        Book Maya at 15:00
+                      </button>
+                      <button
+                        onClick={() => handleSendMessage("Give me today's operations summary")}
+                        className="px-3 py-1.5 rounded-full bg-slate-100 text-slate-700 hover:bg-[#5d5fef] hover:text-white transition-colors text-xs font-medium cursor-pointer"
+                      >
+                        Daily Report
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Chat Message List */}
+                  <div className="space-y-4 max-h-[440px] overflow-y-auto pr-2">
+                    {chatHistory.map((msg, i) => (
+                      <div
+                        key={i}
+                        className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-[85%] sm:max-w-[75%] p-5 rounded-3xl text-sm leading-relaxed ${
+                            msg.sender === 'user'
+                              ? 'bg-[#5d5fef] text-white rounded-br-none shadow-md font-semibold'
+                              : 'bg-white border border-slate-200/80 text-slate-800 rounded-bl-none shadow-sm'
+                          }`}
+                        >
+                          {msg.agent && (
+                            <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-100">
+                              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                              <span className="text-[11px] font-bold text-[#5d5fef] tracking-wide">
+                                {msg.agent}
+                              </span>
+                            </div>
+                          )}
+                          <div className="whitespace-pre-line text-sm text-slate-700 leading-relaxed font-normal">
+                            {msg.text}
+                          </div>
+
+                          {msg.requires_approval && (
+                            <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+                              <span className="text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-full">
+                                ⚠️ Needs Approval
+                              </span>
+                              <button
+                                onClick={() => setActiveTab('approvals')}
+                                className="text-xs font-extrabold text-[#5d5fef] hover:underline"
+                              >
+                                Go to Approvals tab →
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {loading && (
+                      <div className="flex items-center gap-2 text-xs text-indigo-600 font-semibold p-3 bg-indigo-50/80 rounded-2xl w-fit">
+                        <span className="animate-spin text-base">⏳</span>
+                        <span>Assistant is checking hospital records...</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Chat Input */}
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    handleSendMessage();
+                  }}
+                  className="mt-4 pt-4 border-t border-slate-100 flex gap-3"
+                >
+                  <input
+                    type="text"
+                    value={chatMessage}
+                    onChange={(e) => setChatMessage(e.target.value)}
+                    placeholder="Type anything (e.g. 'Is Dr. Elena available today?' or 'Cancel APT-4091')..."
+                    className="flex-1 px-5 py-3.5 rounded-2xl border border-slate-200 bg-slate-50 text-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-[#5d5fef]"
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="btn-primary px-6 py-3.5 text-sm font-bold cursor-pointer"
+                  >
+                    Send
+                  </button>
+                </form>
+              </div>
+            )}
+
+            {/* TAB 4: HUMAN APPROVALS (For Sensitive Operations) */}
+            {activeTab === 'approvals' && (
+              <div className="glass-card-hero p-8">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
+                  <div>
+                    <h2 className="text-2xl font-extrabold text-slate-800">
+                      Supervisor Approval Queue
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Emergency overrides or urgent cancellations require human confirmation here.
+                    </p>
+                  </div>
+                  <span className="px-3 py-1 rounded-full bg-amber-100 text-amber-800 font-bold text-xs">
+                    {pendingApprovals.length} Pending
+                  </span>
+                </div>
+
+                {pendingApprovals.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400">
+                    <div className="text-4xl mb-2">✅</div>
+                    <p className="font-semibold text-sm">No operations are waiting for approval right now.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {pendingApprovals.map(apr => (
+                      <div
+                        key={apr.id}
+                        className="p-5 rounded-2xl border border-slate-200 bg-slate-50/70 space-y-3"
+                      >
+                        <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                          <span className="bg-[#5d5fef]/10 text-[#5d5fef] px-2.5 py-1 rounded-full">
+                            {apr.code}
+                          </span>
+                          <span className="text-rose-600 font-bold uppercase">{apr.risk_level} RISK</span>
+                        </div>
+                        <p className="text-sm font-semibold text-slate-800">{apr.summary}</p>
+                        <div className="flex gap-2 pt-2">
+                          <button
+                            onClick={() => handleResolveApproval(apr.id, 'APPROVED')}
+                            className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs cursor-pointer"
+                          >
+                            ✓ Approve
+                          </button>
+                          <button
+                            onClick={() => handleResolveApproval(apr.id, 'REJECTED')}
+                            className="flex-1 py-2.5 rounded-xl bg-rose-100 hover:bg-rose-200 text-rose-700 font-bold text-xs cursor-pointer"
+                          >
+                            ✕ Reject
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* TAB 5: HOSPITAL POLICIES & FAQ (Clean RAG Knowledge) */}
+            {activeTab === 'faq' && (
+              <div className="glass-card-hero p-8 space-y-6">
+                <div>
+                  <h2 className="text-2xl font-extrabold text-slate-800">Hospital Policies &amp; Info</h2>
+                  <p className="text-xs text-slate-500">
+                    Extracted from the MedGrid Operations Handbook using PyMuPDF and ChromaDB vector search.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                  <div className="p-5 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-2">
+                    <h3 className="font-bold text-indigo-900 text-base">🕒 Visiting Hours &amp; ICU</h3>
+                    <p className="text-xs text-indigo-800/80 leading-relaxed">
+                      General inpatient visiting hours are 11:00 to 13:00 and 17:00 to 20:00 daily (up to 2 visitors per bedside). ICU visiting is strictly limited to 20-minute windows at 12:00 and 18:00.
+                    </p>
+                  </div>
+
+                  <div className="p-5 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-2">
+                    <h3 className="font-bold text-indigo-900 text-base">💳 Insurance &amp; Billing</h3>
+                    <p className="text-xs text-indigo-800/80 leading-relaxed">
+                      Accepted in-network providers include Aetna HealthGrid (100% cashless), BlueCross MedShield, UnitedCare Premier, and Cigna ChoicePlus.
+                    </p>
+                  </div>
+
+                  <div className="p-5 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-2">
+                    <h3 className="font-bold text-indigo-900 text-base">🏥 Department Locations</h3>
+                    <p className="text-xs text-indigo-800/80 leading-relaxed">
+                      Cardiology is in Wing-A (Floor 3), Neurology in Wing-B (Floor 4), Orthopedics in Wing-C (Floor 1), and Pediatrics in Wing-A (Floor 1). Emergency &amp; Trauma is 24/7 on Ground Floor.
+                    </p>
+                  </div>
+
+                  <div className="p-5 rounded-2xl bg-indigo-50/60 border border-indigo-100 space-y-2">
+                    <h3 className="font-bold text-indigo-900 text-base">📋 Cancellation Guidelines</h3>
+                    <p className="text-xs text-indigo-800/80 leading-relaxed">
+                      Routine visits can be rescheduled or cancelled with 4 hours notice. Urgent or Critical appointment cancellations are routed through human supervisor approval.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Clean, Simple Footer */}
+            <footer className="text-center text-white/70 text-xs py-2">
+              CareGrid Clinic Platform &bull; LangGraph + Groq Llama 3.3 70B &bull; n8n Workflows
+            </footer>
+
+          </div>
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    </script>
+  </body>
+</html>

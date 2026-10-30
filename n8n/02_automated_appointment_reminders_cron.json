@@ -1,0 +1,56 @@
+{
+  "name": "MedGrid 02 - Automated Appointment Reminders (Schedule Trigger + SMTP)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "node-schedule-trigger",
+      "name": "Schedule Trigger (Every 6 Hours)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [220, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/n8n/trigger-reminders",
+        "options": {}
+      },
+      "id": "node-fetch-due-appointments",
+      "name": "Query Upcoming Appointments (FastAPI/Postgres)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "fromEmail": "reminders@medgrid-hospital.org",
+        "toEmail": "={{ $json.patient_email }}",
+        "subject": "=Appointment Reminder: Dr. {{ $json.doctor_name }} ({{ $json.department }}) at {{ $json.slot_time }}",
+        "text": "=Hello {{ $json.patient_name }},\n\nThis is an automated reminder from MedGrid Hospital Operations.\nYour appointment with {{ $json.doctor_name }} ({{ $json.department }}) is scheduled for {{ $json.appointment_date }} at {{ $json.slot_time }}.\n\nPlease arrive 15 minutes early with your ID and insurance card."
+      },
+      "id": "node-send-reminder-email",
+      "name": "Send SMTP Reminder",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [760, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger (Every 6 Hours)": {
+      "main": [[{ "node": "Query Upcoming Appointments (FastAPI/Postgres)", "type": "main", "index": 0 }]]
+    },
+    "Query Upcoming Appointments (FastAPI/Postgres)": {
+      "main": [[{ "node": "Send SMTP Reminder", "type": "main", "index": 0 }]]
+    }
+  }
+}
+
